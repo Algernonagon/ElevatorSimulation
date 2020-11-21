@@ -11,13 +11,7 @@ typedef struct {
 
 void initialize_simulation(Elevator_Simulation *es)
 {
-	es->nfloors = nfloors;
-	es->nelevators = nelevators;
-	es->interarrival_time = interarrival_time;
-	es->door_time = door_time;
-	es->floor_to_floor_time = floor_to_floor_time;
-	pthread_mutex_init(es->lock);
-
+	//pthread_mutex_init(es->lock);
 	Sim_Global *vars = (Sim_Global *)malloc(sizeof(Sim_Global));
 	vars->people_waiting = new_dllist();
 	pthread_cond_init(vars->cond, NULL);
@@ -26,18 +20,18 @@ void initialize_simulation(Elevator_Simulation *es)
 
 void initialize_elevator(Elevator *e)
 {
-	e->onfloor = 1;
+	/*e->onfloor = 1;
 	e->door_open = 0;
 	e->moving = 0;
 	e->people = new_dllist();
 	pthread_mutex_init(e->lock);
-	pthread_cond_init(e->cond, NULL);
+	pthread_cond_init(e->cond, NULL);*/
 }
 
 void initialize_person(Person *p)
 {
-	pthread_mutex_init(p->lock);
-	pthread_cond_init(p->cond, NULL);
+	/*pthread_mutex_init(p->lock);
+	pthread_cond_init(p->cond, NULL);*/
 }
 
 void wait_for_elevator(Person *p)
@@ -137,3 +131,32 @@ void *elevator(void *arg)
 		//pthread_mutex_unlock(p->lock);
 	}
 }
+
+/*
+int main(int argc char *argv[]) {
+	int nfloors = argv[1]; 
+  	int nelevators = argv[2];
+  	double interarrival_time = argv[3];   
+  	double door_time = argv[4];           
+  	double floor_to_floor_time = argv[5];
+  	double duration = argv[6];
+  	int seed = argv[7];
+
+  	Elevator_Simulation *es = (Elevator_Simulation *)malloc(sizeof(Elevator_Simulation));
+  	es->nfloors = nfloors;
+	es->nelevators = nelevators;
+	es->interarrival_time = interarrival_time;
+	es->door_time = door_time;
+	es->floor_to_floor_time = floor_to_floor_time;
+  	initialize_simulation(es);
+
+  	pthread_t elevators[nelevators];
+  	for(int i=0; i<nelevators; i++) {
+  		Elevator *e = (Elevator *)malloc(sizeof(Elevator));
+  		e->id = i+1;
+  		e->es = es;
+  		initialize_elevator(e);
+  		pthread_create(&(elevators[i]), NULL, elevator, e);
+  	}
+}
+*/
