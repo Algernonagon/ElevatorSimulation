@@ -1,7 +1,6 @@
-/*elevator_part_1*/
+/*elevator_part_2*/
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <pthread.h>
 #include "elevator.h"
 
@@ -14,7 +13,6 @@ void initialize_simulation(Elevator_Simulation *es)
 {
 	Sim_Global *vars = (Sim_Global *)malloc(sizeof(Sim_Global));
 	vars->people_waiting = new_dllist();
-	vars->cond = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
 	pthread_cond_init(vars->cond, NULL);
 	es->v = (void *)(vars);
 }
@@ -90,9 +88,7 @@ void *elevator(void *arg)
 
 		//Move to person's floor, put self as person's elevator, then signal the person to get on
 		pthread_mutex_lock(p->lock);
-		if(e->onfloor != p->from) {
-			move_to_floor(e, p->from);
-		}
+		move_to_floor(e, p->from);
 		open_door(e);
 		p->e = e;
 		pthread_cond_signal(p->cond);
@@ -120,34 +116,6 @@ void *elevator(void *arg)
 		}
 		pthread_mutex_unlock(e->lock);
 		close_door(e);
+		//pthread_mutex_unlock(p->lock);
 	}
 }
-
-/*
-int main(int argc char *argv[]) {
-	int nfloors = argv[1]; 
-  	int nelevators = argv[2];
-  	double interarrival_time = argv[3];   
-  	double door_time = argv[4];           
-  	double floor_to_floor_time = argv[5];
-  	double duration = argv[6];
-  	int seed = argv[7];
-
-  	Elevator_Simulation *es = (Elevator_Simulation *)malloc(sizeof(Elevator_Simulation));
-  	es->nfloors = nfloors;
-	es->nelevators = nelevators;
-	es->interarrival_time = interarrival_time;
-	es->door_time = door_time;
-	es->floor_to_floor_time = floor_to_floor_time;
-  	initialize_simulation(es);
-
-  	pthread_t elevators[nelevators];
-  	for(int i=0; i<nelevators; i++) {
-  		Elevator *e = (Elevator *)malloc(sizeof(Elevator));
-  		e->id = i+1;
-  		e->es = es;
-  		initialize_elevator(e);
-  		pthread_create(&(elevators[i]), NULL, elevator, e);
-  	}
-}
-*/
