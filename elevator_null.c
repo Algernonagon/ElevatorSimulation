@@ -47,15 +47,40 @@ void initialize_person(Person *p)
 }
 
 void wait_for_elevator(Person *p)
-{
+{	
+	Dllist people_waiting = ((Sim_Global *)(e->es->v))->people_waiting;
+	pthread_cond_t *cond = ((Sim_Global *)(e->es->v))->cond;
+	
+	pthread_mutex_lock(p->es->lock);
+	dll_append(people_waiting, new_jval_v(p));
+	pthread_cond_signal(cond);
+	pthread_mutex_unlock(p->es->lock);
+
+	pthread_mutex_lock(p->lock);
+	while(p->e == NULL) {
+		pthread_cond_wait(p->cond, p->lock);
+	}
+	pthread_mutex_unlock(p->lock);
 }
 
 void wait_to_get_off_elevator(Person *p)
 {
+	pthread_mutex_lock(p->e->lock);
+	pthread_cond_signal(p->e->cond);
+	pthread_mutex_unlock(p->e->lock);
+
+	pthread_mutex_lock(p->lock);
+	while(p->e->onfloor != p->to) {
+		pthread_cond_wait(p->cond, p->lock);
+	}
+	pthread_mutex_unlock(p->lock);
 }
 
 void person_done(Person *p)
 {
+	pthread_mutex_lock(p->e->lock);
+	pthread_cond_signal(p->e->cond);
+	pthread_mutex_unlock(p->e->lock);
 }
 
 void *elevator(void *arg)
@@ -64,15 +89,17 @@ void *elevator(void *arg)
 	e = (Elevator *)(arg);
 
 	while(1) {
-		pthread_mutex_lock(e->es->lock);
 		Dllist people_waiting = ((Sim_Global *)(e->es->v))->people_waiting;
 		pthread_cond_t *cond = ((Sim_Global *)(e->es->v))->cond;
+
+		pthread_mutex_lock(e->es->lock);
 		while(dll_empty(people_waiting)) {
 			pthread_cond_wait(cond, e->es->lock);
 		}
 		Dllist dllnode = dll_first(people_waiting);
 		Person *p = (Person *)jval_v(dll_val(dllnode));
 		dll_delete_node(dllnode);
+		//pthread_mutext_lock(p->lock);
 		pthread_mutex_unlock(e->es->lock);
 
 		pthread_mutex_lock(p->lock);
@@ -80,15 +107,29 @@ void *elevator(void *arg)
 		open_door(e);
 		p->e = e;
 		pthread_cond_signal(p->cond);
-		//pthread_mutex_unlock(p->lock);
-
+		pthread_mutex_unlock(p->lock);
+		
 		pthread_mutex_lock(e->lock);
+		//e->onfloor = p->from;
 		while(dll_empty(e->people)) {
 			pthread_cond_wait(e->cond, e->lock);
 		}
 		pthread_mutex_unlock(e->lock);
-		
+		close_door(e);
+		move_to_floor(e, p->to);
+		open_door(e);
 
+		pthread_mutex_lock(p->lock);
+		pthread_cond_signal(p->cond);
 		pthread_mutex_unlock(p->lock);
+
+		pthread_mutex_lock(e->lock);
+		//e->onfloor = p->to;
+		while(!dll_empty(e->people)) {
+			pthread_cond_wait(e->cond, e->lock);
+		}
+		pthread_mutex_unlock(e->lock);
+		close_door(e);
+		//pthread_mutex_unlock(p->lock);
 	}
 }
