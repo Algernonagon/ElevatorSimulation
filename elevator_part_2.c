@@ -1,6 +1,7 @@
 /*elevator_part_2*/
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
 #include "elevator.h"
 
@@ -13,6 +14,7 @@ void initialize_simulation(Elevator_Simulation *es)
 {
 	Sim_Global *vars = (Sim_Global *)malloc(sizeof(Sim_Global));
 	vars->people_waiting = new_dllist();
+	vars->cond = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
 	pthread_cond_init(vars->cond, NULL);
 	es->v = (void *)(vars);
 }
@@ -88,7 +90,9 @@ void *elevator(void *arg)
 
 		//Move to person's floor, put self as person's elevator, then signal the person to get on
 		pthread_mutex_lock(p->lock);
-		move_to_floor(e, p->from);
+		if(e->onfloor != p->from) {
+			move_to_floor(e, p->from);
+		}
 		open_door(e);
 		p->e = e;
 		pthread_cond_signal(p->cond);
@@ -116,6 +120,5 @@ void *elevator(void *arg)
 		}
 		pthread_mutex_unlock(e->lock);
 		close_door(e);
-		//pthread_mutex_unlock(p->lock);
 	}
 }
