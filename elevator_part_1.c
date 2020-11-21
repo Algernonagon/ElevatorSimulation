@@ -122,32 +122,3 @@ void *elevator(void *arg)
 		close_door(e);
 	}
 }
-
-/*
-int main(int argc char *argv[]) {
-	int nfloors = argv[1]; 
-  	int nelevators = argv[2];
-  	double interarrival_time = argv[3];   
-  	double door_time = argv[4];           
-  	double floor_to_floor_time = argv[5];
-  	double duration = argv[6];
-  	int seed = argv[7];
-
-  	Elevator_Simulation *es = (Elevator_Simulation *)malloc(sizeof(Elevator_Simulation));
-  	es->nfloors = nfloors;
-	es->nelevators = nelevators;
-	es->interarrival_time = interarrival_time;
-	es->door_time = door_time;
-	es->floor_to_floor_time = floor_to_floor_time;
-  	initialize_simulation(es);
-
-  	pthread_t elevators[nelevators];
-  	for(int i=0; i<nelevators; i++) {
-  		Elevator *e = (Elevator *)malloc(sizeof(Elevator));
-  		e->id = i+1;
-  		e->es = es;
-  		initialize_elevator(e);
-  		pthread_create(&(elevators[i]), NULL, elevator, e);
-  	}
-}
-*/
