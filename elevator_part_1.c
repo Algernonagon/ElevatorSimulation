@@ -98,7 +98,7 @@ void *elevator(void *arg)
 		pthread_cond_signal(p->cond);
 		pthread_mutex_unlock(p->lock);
 		
-		//Block until person is on elevator and signaled to move, then take them to their destination
+		//Block until person is on elevator and signals to move, then take them to their destination
 		pthread_mutex_lock(e->lock);
 		while(dll_empty(e->people)) {
 			pthread_cond_wait(e->cond, e->lock);
