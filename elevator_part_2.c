@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 #include "elevator.h"
 
@@ -9,6 +10,16 @@ typedef struct {
 	Dllist people_waiting;
 	pthread_cond_t *cond;
 } Sim_Global;
+
+typedef struct {
+	Dllist people_loading;
+	Dllist people_leaving;
+	int travel_dir;
+} E_Vars;
+
+typedef struct {
+	int travel_dir;
+} P_Vars;
 
 void initialize_simulation(Elevator_Simulation *es)
 {
@@ -21,10 +32,19 @@ void initialize_simulation(Elevator_Simulation *es)
 
 void initialize_elevator(Elevator *e)
 {
+	E_Vars *vars = (E_Vars *)malloc(sizeof(E_Vars));
+	vars->people_loading = new_dllist();
+	vars->people_leaving = new_dllist();
+	vars->travel_dir = 1;
+	e->v = (void *)(vars);
 }
 
 void initialize_person(Person *p)
 {
+	P_Vars *vars = (P_Vars *)malloc(sizeof(P_Vars));
+	if(p->to - p->from > 0) vars->travel_dir = 1;
+	else vars->travel_dir = -1;
+	p->v = (void *)(vars);
 }
 
 void wait_for_elevator(Person *p)
@@ -70,6 +90,8 @@ void person_done(Person *p)
 }
 
 
+
+
 // Notes from TA Office Hours
 
 // while loop
@@ -99,48 +121,103 @@ void *elevator(void *arg)
 	while(1) {
 		Dllist people_waiting = ((Sim_Global *)(e->es->v))->people_waiting;
 		pthread_cond_t *cond = ((Sim_Global *)(e->es->v))->cond;
+		Dllist people_loading = ((E_Vars *)(e->v))->people_loading;
+		Dllist people_leaving = ((E_Vars *)(e->v))->people_leaving;
+		int e_travel_dir = ((E_Vars *)(e->v))->travel_dir;
+		if(e->onfloor + e_travel_dir > e->es->nfloors || e->onfloor + e_travel_dir < 1) {
+			pthread_mutex_lock(e->lock);
+			e_travel_dir *= -1;
+			((E_Vars *)(e->v))->travel_dir = e_travel_dir;
+			pthread_mutex_unlock(e->lock);
+		}
 
-		//Block until there are people waiting and given signal, then take a person off the wait list
+		//Block until there are people waiting and given signal, then add all people on same floor and going in same direction as elevator to people_loading
+		//and remove them from people_waiting
 		pthread_mutex_lock(e->es->lock);
 		while(dll_empty(people_waiting)) {
 			pthread_cond_wait(cond, e->es->lock);
 		}
-		Dllist dllnode = dll_first(people_waiting);
-		Person *p = (Person *)jval_v(dll_val(dllnode));
-		dll_delete_node(dllnode);
+		Dllist dllnode;
+		Person *p;
+		int p_travel_dir; 
+		dll_traverse(dllnode, people_waiting) {
+			p = (Person *)jval_v(dll_val(dllnode));
+			p_travel_dir = ((P_Vars *)(p->v))->travel_dir;
+			if(e->onfloor == p->from && e_travel_dir == p_travel_dir) {
+				pthread_mutex_lock(e->lock);
+				dll_append(people_loading, new_jval_v(p));
+				pthread_mutex_unlock(e->lock);
+				dllnode = dllnode->blink;
+				dll_delete_node(dllnode->flink);
+			}
+		}
 		pthread_mutex_unlock(e->es->lock);
 
-		//Move to person's floor, put self as person's elevator, then signal the person to get on
-		pthread_mutex_lock(p->lock);
-		if(e->onfloor != p->from) {
-			move_to_floor(e, p->from);
+		//Check if there are any people who get off on this floor and append them to people_leaving
+		pthread_mutex_lock(e->lock);
+		dll_traverse(dllnode, e->people) {
+			p = (Person *)jval_v(dll_val(dllnode));
+			if(e->onfloor == p->to) {
+				//pthread_mutex_lock(e->lock);
+				dll_append(people_leaving, new_jval_v(p));
+				//pthread_mutex_unlock(e->lock);
+			}
 		}
-		open_door(e);
-		p->e = e;
-		pthread_cond_signal(p->cond);
-		pthread_mutex_unlock(p->lock);
+		pthread_mutex_unlock(e->lock);
+
+		//If there are people who need to get on or leave and the door is closed, open the door
+		if((!dll_empty(people_loading) || !dll_empty(people_leaving)) && e->door_open == 0) {
+			open_door(e);
+		}
+
+		//Signal all people who get off on this floor
+		dll_traverse(dllnode, people_leaving) {
+			p = (Person *)jval_v(dll_val(dllnode));
+			pthread_mutex_lock(p->lock);
+			pthread_cond_signal(p->cond);
+			pthread_mutex_unlock(p->lock);
+		}
+
+		//Wait for all people getting off to be done and remove them from people_leaving
+		dll_traverse(dllnode, people_leaving) {
+			p = (Person *)jval_v(dll_val(dllnode));
+			pthread_mutex_lock(e->lock);
+			while(p->ptr != NULL) {
+				pthread_cond_wait(e->cond, e->lock);
+			}
+			pthread_mutex_unlock(e->lock);
+			dllnode = dllnode->blink;
+			dll_delete_node(dllnode->flink);
+		}
+
+		//Put self as elevator for all people getting on and signal them to get on elevator
+		dll_traverse(dllnode, people_loading) {
+			p = (Person *)jval_v(dll_val(dllnode));
+			pthread_mutex_lock(p->lock);
+			p->e = e;
+			pthread_cond_signal(p->cond);
+			pthread_mutex_unlock(p->lock);
+		}
 		
-		//Block until person is on elevator and signaled to move, then take them to their destination
-		pthread_mutex_lock(e->lock);
-		while(dll_empty(e->people)) {
-			pthread_cond_wait(e->cond, e->lock);
+		//Wait for all people getting on elevator and remove them from people_loading
+		dll_traverse(dllnode, people_loading) {
+			p = (Person *)jval_v(dll_val(dllnode));
+			pthread_mutex_lock(e->lock);
+			while(p->ptr == NULL) {
+				pthread_cond_wait(e->cond, e->lock);
+			}
+			pthread_mutex_unlock(e->lock);
+			dllnode = dllnode->blink;
+			dll_delete_node(dllnode->flink);
 		}
-		pthread_mutex_unlock(e->lock);
-		close_door(e);
-		move_to_floor(e, p->to);
-		open_door(e);
 
-		//Signal person to get off
-		pthread_mutex_lock(p->lock);
-		pthread_cond_signal(p->cond);
-		pthread_mutex_unlock(p->lock);
-
-		//Block until person gets off and signals they are done.
-		pthread_mutex_lock(e->lock);
-		while(!dll_empty(e->people)) {
-			pthread_cond_wait(e->cond, e->lock);
+		//Close door if it is open
+		if(e->door_open == 1) {
+			close_door(e);
 		}
-		pthread_mutex_unlock(e->lock);
-		close_door(e);
+		//Move one floor
+		move_to_floor(e, e->onfloor + e_travel_dir);
+
+		
 	}
 }
