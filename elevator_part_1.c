@@ -1,7 +1,7 @@
 /*
 elevator_part_1
 THIS CODE IS MY OWN WORK, IT WAS WRITTEN WITHOUT CONSULTING A TUTOR OR CODE
-WRITTEN BY OTHER STUDENTS. Nathan Yang
+WRITTEN BY OTHER STUDENTS. Nathan Yang & Kyle Wu
 */
 
 #include <stdio.h>

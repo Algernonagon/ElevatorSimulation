@@ -1,5 +1,5 @@
 /*
-elevator_part_2
+elevator_part_3
 THIS CODE IS MY OWN WORK, IT WAS WRITTEN WITHOUT CONSULTING A TUTOR OR CODE
 WRITTEN BY OTHER STUDENTS. Nathan Yang & Kyle Wu
 */
